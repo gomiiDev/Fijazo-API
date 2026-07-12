@@ -26,3 +26,7 @@ class InvalidCredentialsError(DomainError):
 
 class ForbiddenError(DomainError):
     """El usuario no tiene permisos para la acción. -> 403."""
+
+
+class InvalidImportFileError(DomainError):
+    """El archivo de importación es inválido (no es .xlsx o faltan columnas). -> 400."""

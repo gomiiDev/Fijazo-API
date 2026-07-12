@@ -47,3 +47,7 @@ class BetRepository(ABC):
 
         Se usa para el backfill de estadísticas al arrancar.
         """
+
+    @abstractmethod
+    async def reference_exists(self, user_id: str, reference_id: str) -> bool:
+        """Indica si el usuario ya tiene una apuesta con ese ``reference_id``."""

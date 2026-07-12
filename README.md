@@ -78,6 +78,25 @@ poetry run uvicorn fijazo_api.main:app --reload
 
 Filtros de `GET /bets`: `page`, `page_size`, `status`, `sport`, `bet_type`.
 
+### Importación masiva desde Excel (requiere token)
+| Método | Ruta             | Descripción                                          |
+|--------|------------------|------------------------------------------------------|
+| GET    | `/bets/template` | Descarga la plantilla `.xlsx` para importar apuestas |
+| POST   | `/bets/import`   | Sube un `.xlsx` y procesa la importación             |
+
+La plantilla trae los encabezados formateados y **listas desplegables** para *Estado* y *Tipo de
+apuesta*. Columnas (en este orden): `Deporte, Liga, Evento, Tipo de apuesta, Mercado, Selección,
+Cuota, Stake, Casa de apuestas, Fecha y hora del evento, Estado, Notas, ID de referencia`
+(esta última opcional). Valores válidos: **Tipo** `SIMPLE`/`PARLAY`, **Estado**
+`PENDING`/`WON`/`LOST`/`VOID`.
+
+Cada fila se valida con **las mismas reglas** que la creación individual (`cuota > 1`, `stake > 0`,
+campos obligatorios, enums). Una fila con errores se rechaza **sin detener** las demás. La respuesta
+resume `total_rows`, `imported`, `rejected` y una lista de `errors` con `row`, `field` y `error`.
+Se detectan duplicados dentro del archivo (evento+selección+fecha), `reference_id` repetido en el
+archivo y `reference_id` ya existente del usuario. Las apuestas importadas **actualizan
+automáticamente las estadísticas y el ranking**.
+
 ### Estadísticas y ranking (requieren token)
 | Método | Ruta              | Descripción                                       |
 |--------|-------------------|---------------------------------------------------|

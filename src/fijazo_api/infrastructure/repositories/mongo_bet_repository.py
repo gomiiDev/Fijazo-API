@@ -119,3 +119,10 @@ class MongoBetRepository(BetRepository):
 
     async def distinct_user_ids(self) -> list[str]:
         return await self._collection.distinct("user_id")
+
+    async def reference_exists(self, user_id: str, reference_id: str) -> bool:
+        doc = await self._collection.find_one(
+            {"user_id": user_id, "reference_id": reference_id},
+            projection={"_id": 1},
+        )
+        return doc is not None

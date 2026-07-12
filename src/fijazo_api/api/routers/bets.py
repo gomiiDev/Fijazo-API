@@ -2,19 +2,26 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
-from fijazo_api.api.deps import CurrentUser, get_bet_service
+from fijazo_api.api.deps import CurrentUser, get_bet_import_service, get_bet_service
 from fijazo_api.api.schemas.bet import (
     BetCreate,
     BetResponse,
     BetUpdate,
     PaginatedBets,
 )
+from fijazo_api.api.schemas.imports import ImportSummaryResponse
+from fijazo_api.application.services.bet_import_service import BetImportService
 from fijazo_api.application.services.bet_service import BetService
+from fijazo_api.core.exceptions import InvalidImportFileError
 from fijazo_api.domain.entities.bet import BetStatus, BetType
+from fijazo_api.infrastructure.excel.bet_import_reader import read_bet_rows
+from fijazo_api.infrastructure.excel.template_generator import build_bet_template
 
 router = APIRouter(prefix="/bets", tags=["bets"])
+
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @router.post(
@@ -60,6 +67,60 @@ async def list_bets(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get(
+    "/template",
+    summary="Descargar la plantilla Excel para importar apuestas",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {_XLSX_MEDIA_TYPE: {}},
+            "description": "Archivo .xlsx con encabezados y listas desplegables "
+            "(Estado, Tipo de apuesta).",
+        }
+    },
+)
+async def download_template(_current_user: CurrentUser) -> Response:
+    """Genera y descarga la plantilla `.xlsx`.
+
+    Columnas: Deporte, Liga, Evento, Tipo de apuesta (SIMPLE/PARLAY), Mercado,
+    Selección, Cuota (>1), Stake (>0), Casa de apuestas, Fecha y hora del evento,
+    Estado (PENDING/WON/LOST/VOID), Notas y ID de referencia (opcional).
+    """
+
+    content = build_bet_template()
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": 'attachment; filename="plantilla_apuestas.xlsx"'},
+    )
+
+
+@router.post(
+    "/import",
+    response_model=ImportSummaryResponse,
+    summary="Importar apuestas desde un archivo .xlsx",
+)
+async def import_bets(
+    current_user: CurrentUser,
+    service: Annotated[BetImportService, Depends(get_bet_import_service)],
+    file: Annotated[UploadFile, File(description="Archivo .xlsx con las apuestas.")],
+) -> ImportSummaryResponse:
+    """Procesa la plantilla rellena y devuelve un resumen de la importación.
+
+    Cada fila se valida con las mismas reglas que la creación individual; las
+    filas con errores se rechazan sin detener el procesamiento de las demás y las
+    apuestas importadas actualizan automáticamente las estadísticas y el ranking.
+    """
+
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise InvalidImportFileError("El archivo debe tener extensión .xlsx.")
+
+    data = await file.read()
+    rows = read_bet_rows(data)
+    summary = await service.import_rows(current_user.id, rows)
+    return ImportSummaryResponse.from_summary(summary)
 
 
 @router.get(

@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
 from fijazo_api.application.services.auth_service import AuthService
+from fijazo_api.application.services.bet_import_service import BetImportService
 from fijazo_api.application.services.bet_service import BetService
 from fijazo_api.application.services.ranking_service import RankingService
 from fijazo_api.application.services.statistics_service import StatisticsService
@@ -79,6 +80,13 @@ def get_bet_service(
     stats_service: Annotated[StatisticsService, Depends(get_statistics_service)],
 ) -> BetService:
     return BetService(bets, stats_sync=stats_service)
+
+
+def get_bet_import_service(
+    bet_service: Annotated[BetService, Depends(get_bet_service)],
+    bets: Annotated[BetRepository, Depends(get_bet_repository)],
+) -> BetImportService:
+    return BetImportService(bet_service, bets)
 
 
 async def get_current_user(

@@ -27,5 +27,9 @@ async def ensure_indexes(db: AsyncDatabase) -> None:
     await db["users"].create_index("email", unique=True)
     await db["users"].create_index("username", unique=True)
     await db["bets"].create_index("user_id")
+    await db["bets"].create_index(
+        [("user_id", 1), ("reference_id", 1)],
+        sparse=True,
+    )
     await db["user_statistics"].create_index("user_id", unique=True)
     await db["user_statistics"].create_index([("ranking_score", -1)])
