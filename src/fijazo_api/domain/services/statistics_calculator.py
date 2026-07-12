@@ -24,10 +24,13 @@ from fijazo_api.domain.entities.statistics import UserStatistics
 
 
 def realized_profit(bet: Bet) -> float:
-    """Beneficio realizado de una apuesta finalizada (0 para pendientes/void)."""
+    """Beneficio realizado de una apuesta finalizada (0 para pendientes/void).
+
+    Usa la cuota **combinada** (para parlays es el producto de las cuotas).
+    """
 
     if bet.status == BetStatus.WON:
-        return round(bet.stake * (bet.odds - 1), 4)
+        return round(bet.stake * (bet.combined_odds - 1), 4)
     if bet.status == BetStatus.LOST:
         return round(-bet.stake, 4)
     return 0.0  # VOID (push) o PENDING
@@ -37,7 +40,7 @@ def realized_return(bet: Bet) -> float:
     """Retorno realizado de una apuesta finalizada."""
 
     if bet.status == BetStatus.WON:
-        return round(bet.stake * bet.odds, 4)
+        return round(bet.stake * bet.combined_odds, 4)
     if bet.status == BetStatus.VOID:
         return round(bet.stake, 4)
     return 0.0  # LOST o PENDING
@@ -135,7 +138,7 @@ def compute_statistics(user_id: str, bets: list[Bet], *, username: str = "") -> 
         stats.roi = (
             round(stats.net_profit / stats.total_stake * 100, 2) if stats.total_stake else 0.0
         )
-        stats.avg_odds = round(_stats.fmean(b.odds for b in finalized), 4)
+        stats.avg_odds = round(_stats.fmean(b.combined_odds for b in finalized), 4)
         stats.avg_stake = round(_stats.fmean(b.stake for b in finalized), 4)
         stats.biggest_win = round(max(profits + [0.0]), 4)
         stats.biggest_loss = round(min(profits + [0.0]), 4)
@@ -145,8 +148,10 @@ def compute_statistics(user_id: str, bets: list[Bet], *, username: str = "") -> 
     stats.consistency = _consistency(decided)
     stats.last_bet_at = max(b.event_datetime for b in bets)
 
-    # Variedad y actividad (para gamificación).
-    stats.distinct_sports = len({b.sport for b in bets})
+    # Variedad y actividad (para gamificación). Los deportes incluyen la
+    # selección principal y todas las selecciones de los parlays.
+    sports = {b.sport for b in bets} | {leg.sport for b in bets for leg in b.legs}
+    stats.distinct_sports = len(sports)
     stats.distinct_bookmakers = len({b.bookmaker for b in bets})
     stats.max_consecutive_days = _max_consecutive_days(bets)
     stats.last_activity_at = max(b.created_at for b in bets)

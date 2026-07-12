@@ -70,13 +70,29 @@ poetry run uvicorn fijazo_api.main:app --reload
 ### Apuestas (requieren `Authorization: Bearer <token>`)
 | Método | Ruta          | Descripción                                        |
 |--------|---------------|----------------------------------------------------|
-| POST   | `/bets`       | Crear una apuesta                                  |
+| POST   | `/bets`       | Crear una apuesta (simple o parlay)                |
 | GET    | `/bets`       | Listar apuestas propias (paginación + filtros)     |
 | GET    | `/bets/{id}`  | Consultar una apuesta por ID                       |
 | PUT    | `/bets/{id}`  | Editar una apuesta                                 |
 | DELETE | `/bets/{id}`  | Eliminar una apuesta                               |
 
 Filtros de `GET /bets`: `page`, `page_size`, `status`, `sport`, `bet_type`.
+
+**Simple vs Parlay**: una apuesta simple usa solo la selección principal. Un **parlay** añade
+selecciones extra en `legs` (`bet_type=PARLAY` requiere ≥1 leg; SIMPLE debe ir sin legs). La
+**cuota combinada** (`combined_odds`) es el producto de todas las cuotas y sobre ella se calculan el
+retorno/beneficio potencial. En el Excel, las filas que comparten la columna **`Ticket`** forman un
+parlay (1ª fila = ticket + selección principal; siguientes = legs).
+
+### Administración de usuarios (solo ADMIN)
+| Método | Ruta                    | Descripción                              |
+|--------|-------------------------|------------------------------------------|
+| GET    | `/users`                | Listar usuarios (paginado)               |
+| GET    | `/users/{id}`           | Detalle de un usuario                    |
+| PATCH  | `/users/{id}/active`    | Activar/desactivar un usuario            |
+
+Un usuario **desactivado** no puede iniciar sesión ni usar su token (403). Un administrador no puede
+desactivarse a sí mismo.
 
 ### Importación masiva desde Excel (requiere token)
 | Método | Ruta             | Descripción                                          |

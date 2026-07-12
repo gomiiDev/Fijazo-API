@@ -22,18 +22,31 @@ class BetStatus(str, Enum):
 
 
 @dataclass
+class BetLeg:
+    """Una selección de un parlay (además de la selección principal de la apuesta)."""
+
+    sport: str
+    league: str
+    event: str
+    market: str
+    selection: str
+    odds: float
+
+
+@dataclass
 class Bet:
     """Una apuesta deportiva perteneciente a un usuario.
 
-    Los campos calculados (``potential_return``, ``potential_profit``,
-    ``implied_probability``) se derivan de ``stake`` y ``odds`` en la capa de
-    aplicación mediante :meth:`recalculate`.
+    Los campos principales (``sport``, ``odds``, …) representan la **selección
+    principal**. Un parlay añade selecciones extra en ``legs``; un simple lo deja
+    vacío. Los campos calculados se derivan de ``stake`` y de la **cuota
+    combinada** (producto de las cuotas) en :meth:`recalculate`.
     """
 
     # Propiedad
     user_id: str
 
-    # Datos de la apuesta
+    # Datos de la apuesta (selección principal)
     sport: str
     league: str
     event: str
@@ -48,7 +61,11 @@ class Bet:
     notes: str | None = None
     reference_id: str | None = None
 
+    # Selecciones adicionales del parlay (vacío en apuestas simples)
+    legs: list[BetLeg] = field(default_factory=list)
+
     # Campos calculados
+    combined_odds: float = 0.0
     potential_return: float = 0.0
     potential_profit: float = 0.0
     implied_probability: float = 0.0
@@ -59,9 +76,14 @@ class Bet:
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def recalculate(self) -> None:
-        """Recalcula los campos derivados a partir de ``stake`` y ``odds``."""
+        """Recalcula los campos derivados a partir de ``stake`` y la cuota combinada."""
 
-        self.potential_return = round(self.stake * self.odds, 4)
-        self.potential_profit = round(self.stake * (self.odds - 1), 4)
+        combined = self.odds
+        for leg in self.legs:
+            combined *= leg.odds
+
+        self.combined_odds = round(combined, 4)
+        self.potential_return = round(self.stake * combined, 4)
+        self.potential_profit = round(self.stake * (combined - 1), 4)
         # Probabilidad implícita como fracción entre 0 y 1.
-        self.implied_probability = round(1 / self.odds, 6)
+        self.implied_probability = round(1 / combined, 6)

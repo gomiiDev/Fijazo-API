@@ -13,7 +13,8 @@ from fijazo_api.application.services.bet_service import BetService
 from fijazo_api.application.services.progression_service import ProgressionService
 from fijazo_api.application.services.ranking_service import RankingService
 from fijazo_api.application.services.statistics_service import StatisticsService
-from fijazo_api.core.exceptions import InvalidCredentialsError
+from fijazo_api.application.services.user_service import UserService
+from fijazo_api.core.exceptions import ForbiddenError, InvalidCredentialsError
 from fijazo_api.core.security import decode_access_token
 from fijazo_api.domain.entities.user import Role, User
 from fijazo_api.domain.repositories.bet_repository import BetRepository
@@ -129,6 +130,8 @@ async def get_current_user(
     user = await users.get_by_id(user_id)
     if user is None:
         raise InvalidCredentialsError("Usuario no encontrado.")
+    if not user.active:
+        raise ForbiddenError("La cuenta está desactivada.")
     return user
 
 
@@ -136,13 +139,14 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def require_admin(current_user: CurrentUser) -> User:
-    """Exige que el usuario autenticado tenga rol ADMIN.
-
-    Preparado para endpoints administrativos futuros.
-    """
-
-    from fijazo_api.core.exceptions import ForbiddenError
+    """Exige que el usuario autenticado tenga rol ADMIN."""
 
     if current_user.role != Role.ADMIN:
         raise ForbiddenError("Se requieren permisos de administrador.")
     return current_user
+
+
+def get_user_service(
+    users: Annotated[UserRepository, Depends(get_user_repository)],
+) -> UserService:
+    return UserService(users)

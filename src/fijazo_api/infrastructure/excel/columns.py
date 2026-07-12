@@ -32,6 +32,9 @@ COLUMNS: tuple[ColumnSpec, ...] = (
     ColumnSpec("Estado", "status", True),
     ColumnSpec("Notas", "notes", False, width=30),
     ColumnSpec("ID de referencia", "reference_id", False),
+    # Clave de agrupación de parlays: las filas con el mismo Ticket forman una
+    # única apuesta combinada. No es un campo de la apuesta.
+    ColumnSpec("Ticket", "ticket", False, width=14),
 )
 
 #: Valores válidos para las listas desplegables del Excel (valores del enum).

@@ -2,16 +2,38 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from fijazo_api.domain.entities.bet import Bet, BetStatus, BetType
+from fijazo_api.domain.entities.bet import Bet, BetLeg, BetStatus, BetType
+
+
+class LegInput(BaseModel):
+    """Una selección adicional de un parlay."""
+
+    sport: str = Field(min_length=1, max_length=100)
+    league: str = Field(min_length=1, max_length=100)
+    event: str = Field(min_length=1, max_length=200)
+    market: str = Field(min_length=1, max_length=100)
+    selection: str = Field(min_length=1, max_length=200)
+    odds: float = Field(gt=1, description="Cuota decimal de la selección, mayor que 1.")
+
+
+def _validate_type_vs_legs(bet_type: BetType | None, legs: list) -> None:
+    """Invariante SIMPLE/PARLAY frente al número de selecciones adicionales."""
+
+    if bet_type == BetType.SIMPLE and legs:
+        raise ValueError("Una apuesta simple no puede tener selecciones adicionales (legs).")
+    if bet_type == BetType.PARLAY and len(legs) < 1:
+        raise ValueError("Un parlay requiere al menos una selección adicional (2 en total).")
 
 
 class BetCreate(BaseModel):
     """Cuerpo para crear una apuesta.
 
-    Los campos calculados no se aceptan aquí: el servicio los deriva de
-    ``stake`` y ``odds``.
+    Los campos principales son la **selección principal**; ``legs`` son las
+    selecciones adicionales de un parlay (vacío en apuestas simples). Los campos
+    calculados no se aceptan aquí: el servicio los deriva de ``stake`` y de la
+    cuota combinada.
     """
 
     sport: str = Field(min_length=1, max_length=100)
@@ -27,6 +49,12 @@ class BetCreate(BaseModel):
     status: BetStatus = BetStatus.PENDING
     notes: str | None = Field(default=None, max_length=1000)
     reference_id: str | None = Field(default=None, max_length=100)
+    legs: list[LegInput] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_type(self) -> "BetCreate":
+        _validate_type_vs_legs(self.bet_type, self.legs)
+        return self
 
 
 class BetUpdate(BaseModel):
@@ -45,6 +73,22 @@ class BetUpdate(BaseModel):
     status: BetStatus | None = None
     notes: str | None = Field(default=None, max_length=1000)
     reference_id: str | None = Field(default=None, max_length=100)
+    legs: list[LegInput] | None = None
+
+
+class LegResponse(BaseModel):
+    """Representación de una selección del parlay."""
+
+    sport: str
+    league: str
+    event: str
+    market: str
+    selection: str
+    odds: float
+
+    @classmethod
+    def from_entity(cls, leg: BetLeg) -> "LegResponse":
+        return cls(**vars(leg))
 
 
 class BetResponse(BaseModel):
@@ -64,6 +108,8 @@ class BetResponse(BaseModel):
     status: BetStatus
     notes: str | None
     reference_id: str | None
+    legs: list[LegResponse]
+    combined_odds: float
     potential_return: float
     potential_profit: float
     implied_probability: float
@@ -87,6 +133,8 @@ class BetResponse(BaseModel):
             status=bet.status,
             notes=bet.notes,
             reference_id=bet.reference_id,
+            legs=[LegResponse.from_entity(leg) for leg in bet.legs],
+            combined_odds=bet.combined_odds,
             potential_return=bet.potential_return,
             potential_profit=bet.potential_profit,
             implied_probability=bet.implied_probability,

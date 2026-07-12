@@ -30,3 +30,7 @@ class ForbiddenError(DomainError):
 
 class InvalidImportFileError(DomainError):
     """El archivo de importación es inválido (no es .xlsx o faltan columnas). -> 400."""
+
+
+class InvalidBetError(DomainError):
+    """La apuesta viola una regla de negocio (p. ej. SIMPLE/PARLAY vs legs). -> 400."""

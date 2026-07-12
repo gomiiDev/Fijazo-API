@@ -6,8 +6,19 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo.asynchronous.database import AsyncDatabase
 
-from fijazo_api.domain.entities.bet import Bet, BetStatus, BetType
+from fijazo_api.domain.entities.bet import Bet, BetLeg, BetStatus, BetType
 from fijazo_api.domain.repositories.bet_repository import BetRepository
+
+
+def _leg_to_entity(doc: dict[str, Any]) -> BetLeg:
+    return BetLeg(
+        sport=doc["sport"],
+        league=doc["league"],
+        event=doc["event"],
+        market=doc["market"],
+        selection=doc["selection"],
+        odds=doc["odds"],
+    )
 
 
 def _to_entity(doc: dict[str, Any]) -> Bet:
@@ -27,6 +38,8 @@ def _to_entity(doc: dict[str, Any]) -> Bet:
         status=BetStatus(doc["status"]),
         notes=doc.get("notes"),
         reference_id=doc.get("reference_id"),
+        legs=[_leg_to_entity(leg) for leg in doc.get("legs", [])],
+        combined_odds=doc.get("combined_odds", doc["odds"]),
         potential_return=doc["potential_return"],
         potential_profit=doc["potential_profit"],
         implied_probability=doc["implied_probability"],
@@ -51,6 +64,8 @@ def _to_document(bet: Bet) -> dict[str, Any]:
         "status": bet.status.value,
         "notes": bet.notes,
         "reference_id": bet.reference_id,
+        "legs": [vars(leg) for leg in bet.legs],
+        "combined_odds": bet.combined_odds,
         "potential_return": bet.potential_return,
         "potential_profit": bet.potential_profit,
         "implied_probability": bet.implied_probability,

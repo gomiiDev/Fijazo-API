@@ -4,9 +4,26 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fijazo_api.application.ports import StatisticsSynchronizer
-from fijazo_api.core.exceptions import NotFoundError
-from fijazo_api.domain.entities.bet import Bet, BetStatus, BetType
+from fijazo_api.core.exceptions import InvalidBetError, NotFoundError
+from fijazo_api.domain.entities.bet import Bet, BetLeg, BetStatus, BetType
 from fijazo_api.domain.repositories.bet_repository import BetRepository
+
+
+def _normalize_legs(data: dict[str, Any]) -> None:
+    """Convierte ``legs`` de dicts a :class:`BetLeg` in-place, si están presentes."""
+
+    legs = data.get("legs")
+    if legs:
+        data["legs"] = [BetLeg(**leg) if isinstance(leg, dict) else leg for leg in legs]
+
+
+def _validate_type_vs_legs(bet: Bet) -> None:
+    """Invariante SIMPLE/PARLAY frente al número de selecciones adicionales."""
+
+    if bet.bet_type == BetType.SIMPLE and bet.legs:
+        raise InvalidBetError("Una apuesta simple no puede tener selecciones adicionales.")
+    if bet.bet_type == BetType.PARLAY and len(bet.legs) < 1:
+        raise InvalidBetError("Un parlay requiere al menos una selección adicional (2 en total).")
 
 
 class BetService:
@@ -35,7 +52,10 @@ class BetService:
     async def create_bet(self, user_id: str, data: dict[str, Any]) -> Bet:
         """Crea una apuesta para el usuario y calcula los campos derivados."""
 
+        data = dict(data)
+        _normalize_legs(data)
         bet = Bet(user_id=user_id, **data)
+        _validate_type_vs_legs(bet)
         bet.recalculate()
         created = await self._bets.create(bet)
         await self._sync_stats(user_id)
@@ -76,9 +96,12 @@ class BetService:
 
         bet = await self.get_bet(user_id, bet_id)
 
+        changes = dict(changes)
+        _normalize_legs(changes)
         for key, value in changes.items():
             setattr(bet, key, value)
 
+        _validate_type_vs_legs(bet)
         bet.recalculate()
         bet.updated_at = datetime.now(timezone.utc)
         updated = await self._bets.update(bet)

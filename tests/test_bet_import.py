@@ -203,3 +203,31 @@ async def test_import_rejects_non_xlsx(client: AsyncClient):
     files = {"file": ("datos.csv", b"a,b,c", "text/csv")}
     resp = await client.post("/bets/import", files=files, headers=auth_header(token))
     assert resp.status_code == 400
+
+
+async def test_import_parlay_grouped_by_ticket(client: AsyncClient):
+    token = await register_and_login(client, "impparlay", "impparlay@test.com")
+    h = auth_header(token)
+
+    data = _build_xlsx(
+        [
+            # Parlay: dos filas con el mismo Ticket "T1".
+            _valid_record(bet_type="PARLAY", odds=2.0, stake=10, event="A", ticket="T1"),
+            _valid_record(sport="Tenis", event="B", selection="Y", odds=3.0, ticket="T1"),
+            # Una apuesta simple sin ticket.
+            _valid_record(event="C"),
+        ]
+    )
+    files = {"file": ("apuestas.xlsx", data, "application/octet-stream")}
+    resp = await client.post("/bets/import", files=files, headers=h)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_rows"] == 3  # filas físicas
+    assert body["imported"] == 2  # 1 parlay + 1 simple
+    assert body["rejected"] == 0
+
+    bets = (await client.get("/bets", headers=h)).json()
+    assert bets["total"] == 2
+    parlay = next(b for b in bets["items"] if b["bet_type"] == "PARLAY")
+    assert len(parlay["legs"]) == 1
+    assert parlay["combined_odds"] == 6.0  # 2.0 * 3.0

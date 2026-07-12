@@ -20,5 +20,6 @@ class User:
     email: str
     hashed_password: str
     role: Role = Role.USER
+    active: bool = True
     id: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

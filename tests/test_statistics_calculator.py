@@ -16,7 +16,7 @@ BASE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 def make_bet(status: BetStatus, odds: float, stake: float, minutes: int = 0) -> Bet:
     """Crea una apuesta mínima para los tests, con orden temporal controlado."""
 
-    return Bet(
+    bet = Bet(
         user_id="u1",
         sport="Fútbol",
         league="LaLiga",
@@ -30,6 +30,8 @@ def make_bet(status: BetStatus, odds: float, stake: float, minutes: int = 0) -> 
         event_datetime=BASE + timedelta(minutes=minutes),
         status=status,
     )
+    bet.recalculate()  # fija combined_odds (= odds en apuestas simples)
+    return bet
 
 
 def test_empty_history():

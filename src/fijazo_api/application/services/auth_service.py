@@ -1,6 +1,10 @@
 """Casos de uso de autenticación: registro e inicio de sesión."""
 
-from fijazo_api.core.exceptions import AlreadyExistsError, InvalidCredentialsError
+from fijazo_api.core.exceptions import (
+    AlreadyExistsError,
+    ForbiddenError,
+    InvalidCredentialsError,
+)
 from fijazo_api.core.security import (
     create_access_token,
     hash_password,
@@ -41,6 +45,8 @@ class AuthService:
         user = await self._users.get_by_email(email)
         if user is None or not verify_password(password, user.hashed_password):
             raise InvalidCredentialsError("Correo o contraseña incorrectos.")
+        if not user.active:
+            raise ForbiddenError("La cuenta está desactivada.")
 
         assert user.id is not None  # persistido: siempre tiene id
         return create_access_token(subject=user.id, role=user.role.value)

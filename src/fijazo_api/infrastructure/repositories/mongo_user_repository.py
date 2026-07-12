@@ -19,6 +19,7 @@ def _to_entity(doc: dict[str, Any]) -> User:
         email=doc["email"],
         hashed_password=doc["hashed_password"],
         role=Role(doc["role"]),
+        active=doc.get("active", True),
         created_at=doc["created_at"],
     )
 
@@ -35,6 +36,7 @@ class MongoUserRepository(UserRepository):
             "email": user.email,
             "hashed_password": user.hashed_password,
             "role": user.role.value,
+            "active": user.active,
             "created_at": user.created_at,
         }
         try:
@@ -59,3 +61,17 @@ class MongoUserRepository(UserRepository):
     async def get_by_username(self, username: str) -> User | None:
         doc = await self._collection.find_one({"username": username})
         return _to_entity(doc) if doc else None
+
+    async def list(self, *, skip: int = 0, limit: int = 20) -> tuple[list[User], int]:
+        total = await self._collection.count_documents({})
+        cursor = self._collection.find({}).sort("created_at", 1).skip(skip).limit(limit)
+        items = [_to_entity(doc) async for doc in cursor]
+        return items, total
+
+    async def set_active(self, user_id: str, active: bool) -> bool:
+        try:
+            oid = ObjectId(user_id)
+        except InvalidId, TypeError:
+            return False
+        result = await self._collection.update_one({"_id": oid}, {"$set": {"active": active}})
+        return result.matched_count > 0
