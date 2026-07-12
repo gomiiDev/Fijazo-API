@@ -1,0 +1,61 @@
+"""Implementación MongoDB del repositorio de usuarios."""
+
+from typing import Any
+
+from bson import ObjectId
+from bson.errors import InvalidId
+from pymongo.asynchronous.database import AsyncDatabase
+
+from fijazo_api.core.exceptions import AlreadyExistsError
+from fijazo_api.domain.entities.user import Role, User
+from fijazo_api.domain.repositories.user_repository import UserRepository
+from pymongo.errors import DuplicateKeyError
+
+
+def _to_entity(doc: dict[str, Any]) -> User:
+    return User(
+        id=str(doc["_id"]),
+        username=doc["username"],
+        email=doc["email"],
+        hashed_password=doc["hashed_password"],
+        role=Role(doc["role"]),
+        created_at=doc["created_at"],
+    )
+
+
+class MongoUserRepository(UserRepository):
+    """Persiste usuarios en la colección ``users``."""
+
+    def __init__(self, db: AsyncDatabase) -> None:
+        self._collection = db["users"]
+
+    async def create(self, user: User) -> User:
+        doc = {
+            "username": user.username,
+            "email": user.email,
+            "hashed_password": user.hashed_password,
+            "role": user.role.value,
+            "created_at": user.created_at,
+        }
+        try:
+            result = await self._collection.insert_one(doc)
+        except DuplicateKeyError as exc:  # respaldo si falla el índice único
+            raise AlreadyExistsError("El correo o el nombre de usuario ya existe.") from exc
+        user.id = str(result.inserted_id)
+        return user
+
+    async def get_by_id(self, user_id: str) -> User | None:
+        try:
+            oid = ObjectId(user_id)
+        except InvalidId, TypeError:
+            return None
+        doc = await self._collection.find_one({"_id": oid})
+        return _to_entity(doc) if doc else None
+
+    async def get_by_email(self, email: str) -> User | None:
+        doc = await self._collection.find_one({"email": email})
+        return _to_entity(doc) if doc else None
+
+    async def get_by_username(self, username: str) -> User | None:
+        doc = await self._collection.find_one({"username": username})
+        return _to_entity(doc) if doc else None

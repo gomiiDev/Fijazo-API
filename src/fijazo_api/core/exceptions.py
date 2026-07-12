@@ -1,0 +1,28 @@
+"""Excepciones de dominio, independientes del framework web.
+
+Se traducen a respuestas HTTP mediante handlers registrados en ``main.py``.
+"""
+
+
+class DomainError(Exception):
+    """Base para todos los errores de dominio."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+class NotFoundError(DomainError):
+    """El recurso solicitado no existe (o no pertenece al usuario). -> 404."""
+
+
+class AlreadyExistsError(DomainError):
+    """Conflicto de unicidad (email o username ya en uso). -> 409."""
+
+
+class InvalidCredentialsError(DomainError):
+    """Credenciales de autenticación inválidas. -> 401."""
+
+
+class ForbiddenError(DomainError):
+    """El usuario no tiene permisos para la acción. -> 403."""

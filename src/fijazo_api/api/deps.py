@@ -1,0 +1,91 @@
+"""Dependencias de FastAPI: inyección de repos, servicios y usuario actual."""
+
+from typing import Annotated
+
+import jwt
+from fastapi import Depends, Request
+from fastapi.security import OAuth2PasswordBearer
+from pymongo.asynchronous.database import AsyncDatabase
+
+from fijazo_api.application.services.auth_service import AuthService
+from fijazo_api.application.services.bet_service import BetService
+from fijazo_api.core.exceptions import InvalidCredentialsError
+from fijazo_api.core.security import decode_access_token
+from fijazo_api.domain.entities.user import Role, User
+from fijazo_api.domain.repositories.bet_repository import BetRepository
+from fijazo_api.domain.repositories.user_repository import UserRepository
+from fijazo_api.infrastructure.repositories.mongo_bet_repository import (
+    MongoBetRepository,
+)
+from fijazo_api.infrastructure.repositories.mongo_user_repository import (
+    MongoUserRepository,
+)
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+
+def get_db(request: Request) -> AsyncDatabase:
+    """Devuelve la base de datos MongoDB del estado de la aplicación."""
+
+    return request.app.state.db
+
+
+def get_user_repository(
+    db: Annotated[AsyncDatabase, Depends(get_db)],
+) -> UserRepository:
+    return MongoUserRepository(db)
+
+
+def get_bet_repository(
+    db: Annotated[AsyncDatabase, Depends(get_db)],
+) -> BetRepository:
+    return MongoBetRepository(db)
+
+
+def get_auth_service(
+    users: Annotated[UserRepository, Depends(get_user_repository)],
+) -> AuthService:
+    return AuthService(users)
+
+
+def get_bet_service(
+    bets: Annotated[BetRepository, Depends(get_bet_repository)],
+) -> BetService:
+    return BetService(bets)
+
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    users: Annotated[UserRepository, Depends(get_user_repository)],
+) -> User:
+    """Resuelve el usuario autenticado a partir del JWT del header Authorization."""
+
+    try:
+        payload = decode_access_token(token)
+        user_id = payload.get("sub")
+    except jwt.PyJWTError as exc:
+        raise InvalidCredentialsError("Token inválido o expirado.") from exc
+
+    if not user_id:
+        raise InvalidCredentialsError("Token inválido.")
+
+    user = await users.get_by_id(user_id)
+    if user is None:
+        raise InvalidCredentialsError("Usuario no encontrado.")
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def require_admin(current_user: CurrentUser) -> User:
+    """Exige que el usuario autenticado tenga rol ADMIN.
+
+    Preparado para endpoints administrativos futuros.
+    """
+
+    from fijazo_api.core.exceptions import ForbiddenError
+
+    if current_user.role != Role.ADMIN:
+        raise ForbiddenError("Se requieren permisos de administrador.")
+    return current_user
