@@ -29,6 +29,10 @@ class StatisticsResponse(BaseModel):
     current_streak: int
     best_streak: int
     consistency: float
+    distinct_sports: int
+    distinct_bookmakers: int
+    max_consecutive_days: int
+    last_activity_at: datetime | None
     last_bet_at: datetime | None
     ranking_score: float
     updated_at: datetime

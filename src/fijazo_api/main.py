@@ -6,7 +6,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from fijazo_api.api.routers import auth, bets, ranking, statistics, users
+from fijazo_api.api.routers import (
+    achievements,
+    auth,
+    bets,
+    ranking,
+    ranks,
+    statistics,
+    users,
+)
+from fijazo_api.application.services.progression_service import ProgressionService
 from fijazo_api.application.services.statistics_service import StatisticsService
 from fijazo_api.core.config import get_settings
 from fijazo_api.core.exceptions import (
@@ -23,6 +32,9 @@ from fijazo_api.infrastructure.database.mongo import (
 )
 from fijazo_api.infrastructure.repositories.mongo_bet_repository import (
     MongoBetRepository,
+)
+from fijazo_api.infrastructure.repositories.mongo_progression_repository import (
+    MongoProgressionRepository,
 )
 from fijazo_api.infrastructure.repositories.mongo_statistics_repository import (
     MongoStatisticsRepository,
@@ -52,12 +64,14 @@ async def lifespan(app: FastAPI):
     await ensure_indexes(db)
     await seed_admin(user_repo, settings)
 
-    # Backfill idempotente: deja el ranking completo con las apuestas existentes.
-    stats_service = StatisticsService(
-        MongoBetRepository(db), MongoStatisticsRepository(db), user_repo
+    # Backfill idempotente: estadísticas + rango/logros de las apuestas existentes.
+    bet_repo = MongoBetRepository(db)
+    stats_service = StatisticsService(bet_repo, MongoStatisticsRepository(db), user_repo)
+    progression_service = ProgressionService(
+        stats_service, MongoProgressionRepository(db), user_repo, bet_repo
     )
-    processed = await stats_service.recalculate_all()
-    logger.info("Backfill de estadísticas completado para %d usuario(s).", processed)
+    processed = await progression_service.recalculate_all()
+    logger.info("Backfill de estadísticas y progresión completado para %d usuario(s).", processed)
 
     try:
         yield
@@ -105,6 +119,8 @@ def create_app() -> FastAPI:
     app.include_router(bets.router)
     app.include_router(statistics.router)
     app.include_router(ranking.router)
+    app.include_router(achievements.router)
+    app.include_router(ranks.router)
 
     @app.get("/health", tags=["health"], summary="Comprobación de salud")
     async def health() -> dict[str, str]:

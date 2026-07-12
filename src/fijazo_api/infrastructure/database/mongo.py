@@ -5,9 +5,13 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 
 def create_client(mongo_uri: str) -> AsyncMongoClient:
-    """Crea un cliente async de MongoDB."""
+    """Crea un cliente async de MongoDB.
 
-    return AsyncMongoClient(mongo_uri)
+    ``tz_aware=True`` hace que las fechas leídas vuelvan como *aware* (UTC), de
+    modo que se pueden comparar con ``datetime.now(timezone.utc)`` sin errores.
+    """
+
+    return AsyncMongoClient(mongo_uri, tz_aware=True)
 
 
 def get_database(client: AsyncMongoClient, db_name: str) -> AsyncDatabase:
@@ -33,3 +37,4 @@ async def ensure_indexes(db: AsyncDatabase) -> None:
     )
     await db["user_statistics"].create_index("user_id", unique=True)
     await db["user_statistics"].create_index([("ranking_score", -1)])
+    await db["user_progression"].create_index("user_id", unique=True)

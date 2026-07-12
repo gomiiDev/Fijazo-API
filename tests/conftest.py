@@ -23,13 +23,14 @@ TEST_DB_NAME = os.getenv("TEST_DB_NAME", "fijazo_test")
 async def test_db():
     """Base de datos de test limpia con los índices creados."""
 
-    client = AsyncMongoClient(TEST_MONGO_URI)
+    client = AsyncMongoClient(TEST_MONGO_URI, tz_aware=True)  # igual que producción
     db = client[TEST_DB_NAME]
 
     # Estado limpio antes del test.
     await db["users"].drop()
     await db["bets"].drop()
     await db["user_statistics"].drop()
+    await db["user_progression"].drop()
     await ensure_indexes(db)
 
     try:
@@ -38,6 +39,7 @@ async def test_db():
         await db["users"].drop()
         await db["bets"].drop()
         await db["user_statistics"].drop()
+        await db["user_progression"].drop()
         await client.close()
 
 

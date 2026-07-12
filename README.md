@@ -109,6 +109,26 @@ Las estadísticas **no se almacenan a mano**: se calculan a partir del historial
 **materializan** en la colección `user_statistics`, que se **recalcula automáticamente** en cada
 creación, edición o borrado de apuestas (y se rellena en el arranque para las apuestas existentes).
 
+### Rangos y logros (gamificación, requieren token)
+| Método | Ruta                | Descripción                                          |
+|--------|---------------------|------------------------------------------------------|
+| GET    | `/achievements`     | Catálogo completo de logros                          |
+| GET    | `/achievements/me`  | Logros del usuario (desbloqueados + pendientes)      |
+| GET    | `/ranks`            | Todos los rangos disponibles                         |
+| GET    | `/ranks/me`         | Rango actual, puntuación y progreso al siguiente     |
+
+El rango se calcula con una **puntuación modular** ([rank_scorer.py](src/fijazo_api/domain/services/rank_scorer.py))
+que combina win rate, ROI, beneficio, consistencia, racha, volumen y **antigüedad** en la
+plataforma, con penalización por muestra pequeña. Los 9 rangos (Novato…Leyenda) y sus umbrales son
+**configurables** en [ranks_config.py](src/fijazo_api/domain/services/ranks_config.py).
+
+Los **logros** están definidos en un catálogo extensible
+([achievements_catalog.py](src/fijazo_api/domain/services/achievements_catalog.py)) por categorías
+(rachas, experiencia, rentabilidad, precisión, actividad, casas, deportes). Añadir un logro nuevo es
+solo registrar otra entrada; el evaluador no cambia. Se **evalúan automáticamente** en cada cambio de
+apuestas —solo los aún bloqueados, sin duplicar— y se persisten con su fecha en `user_progression`.
+Reutilizan las estadísticas ya calculadas (rango y logros nunca se editan a mano).
+
 ### Campos calculados de una apuesta
 - `potential_return = stake × odds`
 - `potential_profit = stake × (odds − 1)`

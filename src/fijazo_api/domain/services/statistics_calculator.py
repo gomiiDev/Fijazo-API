@@ -88,6 +88,22 @@ def _consistency(decided: list[Bet]) -> float:
     return round(100.0 / (1.0 + stddev), 4)
 
 
+def _max_consecutive_days(bets: list[Bet]) -> int:
+    """Mayor racha de días naturales consecutivos con al menos una apuesta.
+
+    Se basa en ``created_at`` (fecha de registro de la apuesta = actividad real).
+    """
+
+    days = sorted({b.created_at.date() for b in bets})
+    if not days:
+        return 0
+    best = run = 1
+    for prev, curr in zip(days, days[1:]):
+        run = run + 1 if (curr - prev).days == 1 else 1
+        best = max(best, run)
+    return best
+
+
 def compute_statistics(user_id: str, bets: list[Bet], *, username: str = "") -> UserStatistics:
     """Calcula las estadísticas agregadas de un usuario a partir de sus apuestas."""
 
@@ -128,5 +144,11 @@ def compute_statistics(user_id: str, bets: list[Bet], *, username: str = "") -> 
     stats.best_streak = _best_win_streak(decided)
     stats.consistency = _consistency(decided)
     stats.last_bet_at = max(b.event_datetime for b in bets)
+
+    # Variedad y actividad (para gamificación).
+    stats.distinct_sports = len({b.sport for b in bets})
+    stats.distinct_bookmakers = len({b.bookmaker for b in bets})
+    stats.max_consecutive_days = _max_consecutive_days(bets)
+    stats.last_activity_at = max(b.created_at for b in bets)
 
     return stats

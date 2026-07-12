@@ -38,6 +38,12 @@ class UserStatistics:
     best_streak: int = 0  # mayor racha de victorias consecutivas
     consistency: float = 0.0  # 0..100
 
+    # Variedad y actividad (para gamificación)
+    distinct_sports: int = 0
+    distinct_bookmakers: int = 0
+    max_consecutive_days: int = 0  # mayor racha de días naturales consecutivos apostando
+    last_activity_at: datetime | None = None  # última fecha de registro (created_at)
+
     # Metadatos
     last_bet_at: datetime | None = None
     ranking_score: float = 0.0

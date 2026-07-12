@@ -26,6 +26,10 @@ _FIELDS = (
     "current_streak",
     "best_streak",
     "consistency",
+    "distinct_sports",
+    "distinct_bookmakers",
+    "max_consecutive_days",
+    "last_activity_at",
     "last_bet_at",
     "ranking_score",
     "updated_at",
@@ -33,7 +37,10 @@ _FIELDS = (
 
 
 def _to_entity(doc: dict[str, Any]) -> UserStatistics:
-    return UserStatistics(user_id=doc["user_id"], **{f: doc[f] for f in _FIELDS})
+    # ``.get`` tolera documentos escritos antes de añadir campos nuevos; el
+    # backfill de arranque los reescribe con los valores calculados.
+    known = {f: doc[f] for f in _FIELDS if f in doc}
+    return UserStatistics(user_id=doc["user_id"], **known)
 
 
 def _to_document(stats: UserStatistics) -> dict[str, Any]:

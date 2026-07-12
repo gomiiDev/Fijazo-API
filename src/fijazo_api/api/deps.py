@@ -10,16 +10,21 @@ from pymongo.asynchronous.database import AsyncDatabase
 from fijazo_api.application.services.auth_service import AuthService
 from fijazo_api.application.services.bet_import_service import BetImportService
 from fijazo_api.application.services.bet_service import BetService
+from fijazo_api.application.services.progression_service import ProgressionService
 from fijazo_api.application.services.ranking_service import RankingService
 from fijazo_api.application.services.statistics_service import StatisticsService
 from fijazo_api.core.exceptions import InvalidCredentialsError
 from fijazo_api.core.security import decode_access_token
 from fijazo_api.domain.entities.user import Role, User
 from fijazo_api.domain.repositories.bet_repository import BetRepository
+from fijazo_api.domain.repositories.progression_repository import ProgressionRepository
 from fijazo_api.domain.repositories.statistics_repository import StatisticsRepository
 from fijazo_api.domain.repositories.user_repository import UserRepository
 from fijazo_api.infrastructure.repositories.mongo_bet_repository import (
     MongoBetRepository,
+)
+from fijazo_api.infrastructure.repositories.mongo_progression_repository import (
+    MongoProgressionRepository,
 )
 from fijazo_api.infrastructure.repositories.mongo_statistics_repository import (
     MongoStatisticsRepository,
@@ -55,6 +60,12 @@ def get_statistics_repository(
     return MongoStatisticsRepository(db)
 
 
+def get_progression_repository(
+    db: Annotated[AsyncDatabase, Depends(get_db)],
+) -> ProgressionRepository:
+    return MongoProgressionRepository(db)
+
+
 def get_auth_service(
     users: Annotated[UserRepository, Depends(get_user_repository)],
 ) -> AuthService:
@@ -75,11 +86,22 @@ def get_ranking_service(
     return RankingService(stats)
 
 
+def get_progression_service(
+    stats_service: Annotated[StatisticsService, Depends(get_statistics_service)],
+    progression: Annotated[ProgressionRepository, Depends(get_progression_repository)],
+    users: Annotated[UserRepository, Depends(get_user_repository)],
+    bets: Annotated[BetRepository, Depends(get_bet_repository)],
+) -> ProgressionService:
+    return ProgressionService(stats_service, progression, users, bets)
+
+
 def get_bet_service(
     bets: Annotated[BetRepository, Depends(get_bet_repository)],
-    stats_service: Annotated[StatisticsService, Depends(get_statistics_service)],
+    progression_service: Annotated[ProgressionService, Depends(get_progression_service)],
 ) -> BetService:
-    return BetService(bets, stats_sync=stats_service)
+    # La progresión encadena el recálculo de estadísticas (stats -> rango/logros),
+    # por lo que sirve como sincronizador tras cada mutación de apuestas.
+    return BetService(bets, stats_sync=progression_service)
 
 
 def get_bet_import_service(
