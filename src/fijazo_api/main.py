@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from fijazo_api.api.routers import auth, bets, users
+from fijazo_api.api.routers import auth, bets, ranking, statistics, users
+from fijazo_api.application.services.statistics_service import StatisticsService
 from fijazo_api.core.config import get_settings
 from fijazo_api.core.exceptions import (
     AlreadyExistsError,
@@ -20,10 +21,18 @@ from fijazo_api.infrastructure.database.mongo import (
     ensure_indexes,
     get_database,
 )
+from fijazo_api.infrastructure.repositories.mongo_bet_repository import (
+    MongoBetRepository,
+)
+from fijazo_api.infrastructure.repositories.mongo_statistics_repository import (
+    MongoStatisticsRepository,
+)
 from fijazo_api.infrastructure.repositories.mongo_user_repository import (
     MongoUserRepository,
 )
 from fijazo_api.infrastructure.seed import seed_admin
+
+logger = logging.getLogger(__name__)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,8 +48,16 @@ async def lifespan(app: FastAPI):
     app.state.mongo_client = client
     app.state.db = db
 
+    user_repo = MongoUserRepository(db)
     await ensure_indexes(db)
-    await seed_admin(MongoUserRepository(db), settings)
+    await seed_admin(user_repo, settings)
+
+    # Backfill idempotente: deja el ranking completo con las apuestas existentes.
+    stats_service = StatisticsService(
+        MongoBetRepository(db), MongoStatisticsRepository(db), user_repo
+    )
+    processed = await stats_service.recalculate_all()
+    logger.info("Backfill de estadísticas completado para %d usuario(s).", processed)
 
     try:
         yield
@@ -86,6 +103,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(users.router)
     app.include_router(bets.router)
+    app.include_router(statistics.router)
+    app.include_router(ranking.router)
 
     @app.get("/health", tags=["health"], summary="Comprobación de salud")
     async def health() -> dict[str, str]:

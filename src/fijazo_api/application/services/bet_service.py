@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
+from fijazo_api.application.ports import StatisticsSynchronizer
 from fijazo_api.core.exceptions import NotFoundError
 from fijazo_api.domain.entities.bet import Bet, BetStatus, BetType
 from fijazo_api.domain.repositories.bet_repository import BetRepository
@@ -14,17 +15,31 @@ class BetService:
     Toda operación sobre una apuesta concreta valida que pertenezca al usuario
     autenticado; en caso contrario se comporta como si no existiera (404),
     evitando filtrar la existencia de recursos ajenos.
+
+    Si se le inyecta un ``StatisticsSynchronizer``, tras cada mutación recalcula
+    las estadísticas del usuario para mantener el ranking sincronizado.
     """
 
-    def __init__(self, bet_repository: BetRepository) -> None:
+    def __init__(
+        self,
+        bet_repository: BetRepository,
+        stats_sync: StatisticsSynchronizer | None = None,
+    ) -> None:
         self._bets = bet_repository
+        self._stats_sync = stats_sync
+
+    async def _sync_stats(self, user_id: str) -> None:
+        if self._stats_sync is not None:
+            await self._stats_sync.recalculate(user_id)
 
     async def create_bet(self, user_id: str, data: dict[str, Any]) -> Bet:
         """Crea una apuesta para el usuario y calcula los campos derivados."""
 
         bet = Bet(user_id=user_id, **data)
         bet.recalculate()
-        return await self._bets.create(bet)
+        created = await self._bets.create(bet)
+        await self._sync_stats(user_id)
+        return created
 
     async def get_bet(self, user_id: str, bet_id: str) -> Bet:
         """Devuelve una apuesta del usuario o lanza :class:`NotFoundError`."""
@@ -66,7 +81,9 @@ class BetService:
 
         bet.recalculate()
         bet.updated_at = datetime.now(timezone.utc)
-        return await self._bets.update(bet)
+        updated = await self._bets.update(bet)
+        await self._sync_stats(user_id)
+        return updated
 
     async def delete_bet(self, user_id: str, bet_id: str) -> None:
         """Elimina una apuesta del usuario o lanza :class:`NotFoundError`."""
@@ -74,3 +91,4 @@ class BetService:
         # Reutiliza get_bet para verificar propiedad y existencia.
         await self.get_bet(user_id, bet_id)
         await self._bets.delete(bet_id)
+        await self._sync_stats(user_id)

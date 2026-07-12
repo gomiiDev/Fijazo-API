@@ -21,8 +21,11 @@ async def ensure_indexes(db: AsyncDatabase) -> None:
 
     - ``users.email`` y ``users.username`` únicos (refuerza la unicidad).
     - ``bets.user_id`` para acelerar el listado por usuario.
+    - ``user_statistics.user_id`` único y ``ranking_score`` (desc) para el ranking.
     """
 
     await db["users"].create_index("email", unique=True)
     await db["users"].create_index("username", unique=True)
     await db["bets"].create_index("user_id")
+    await db["user_statistics"].create_index("user_id", unique=True)
+    await db["user_statistics"].create_index([("ranking_score", -1)])

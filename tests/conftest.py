@@ -29,6 +29,7 @@ async def test_db():
     # Estado limpio antes del test.
     await db["users"].drop()
     await db["bets"].drop()
+    await db["user_statistics"].drop()
     await ensure_indexes(db)
 
     try:
@@ -36,6 +37,7 @@ async def test_db():
     finally:
         await db["users"].drop()
         await db["bets"].drop()
+        await db["user_statistics"].drop()
         await client.close()
 
 

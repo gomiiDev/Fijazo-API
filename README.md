@@ -78,11 +78,43 @@ poetry run uvicorn fijazo_api.main:app --reload
 
 Filtros de `GET /bets`: `page`, `page_size`, `status`, `sport`, `bet_type`.
 
+### Estadísticas y ranking (requieren token)
+| Método | Ruta              | Descripción                                       |
+|--------|-------------------|---------------------------------------------------|
+| GET    | `/statistics/me`  | Estadísticas del usuario autenticado              |
+| GET    | `/ranking`        | Ranking global paginado (orden por `ranking_score`) |
+| GET    | `/ranking/top`    | Top de usuarios (`limit`, por defecto 10)         |
+| GET    | `/ranking/me`     | Posición del usuario en el ranking                |
+
+Las estadísticas **no se almacenan a mano**: se calculan a partir del historial de apuestas y se
+**materializan** en la colección `user_statistics`, que se **recalcula automáticamente** en cada
+creación, edición o borrado de apuestas (y se rellena en el arranque para las apuestas existentes).
+
 ### Campos calculados de una apuesta
 - `potential_return = stake × odds`
 - `potential_profit = stake × (odds − 1)`
 - `implied_probability = 1 / odds`
 - `created_at`, `updated_at`
+
+### Fórmulas de estadísticas
+Conjuntos: **finalizadas** = WON+LOST+VOID · **decididas** = WON+LOST (VOID es *push*, se excluye
+del win rate, rachas y consistencia). Resultado realizado por apuesta: WON → `stake·(odds−1)`;
+LOST → `−stake`; VOID → `0` (se devuelve el stake).
+
+- **Win Rate** = ganadas / decididas · 100
+- **ROI** = beneficio neto / stake total · 100
+- **Beneficio neto** = retorno total − stake total
+- **Racha actual** = W/L consecutivas al final (ordenado por `event_datetime`, saltando VOID);
+  positiva = victorias, negativa = derrotas. **Mejor racha** = mayor racha de victorias
+- **Consistencia** = `100 / (1 + stddev(roi_i))`, con `roi_i` = beneficio/stake por apuesta decidida
+
+### `ranking_score`
+Puntuación compuesta (0..100) de componentes normalizados —win rate, ROI, beneficio (acotado con
+`tanh`), consistencia, racha y volumen— con pesos ajustables en
+[`ranking_scorer.py`](src/fijazo_api/domain/services/ranking_scorer.py). Incluye una **penalización
+por muestra pequeña**: `confidence = min(1, finalizadas / 30)`, de modo que un usuario con pocas
+apuestas no escala a los primeros puestos. Todas las constantes (umbral, pesos, escalas) están
+centralizadas y documentadas para ajustar o añadir métricas sin tocar la orquestación.
 
 ## Reglas de validación
 

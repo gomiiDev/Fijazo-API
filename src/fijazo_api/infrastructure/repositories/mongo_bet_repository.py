@@ -116,3 +116,6 @@ class MongoBetRepository(BetRepository):
             return False
         result = await self._collection.delete_one({"_id": oid})
         return result.deleted_count > 0
+
+    async def distinct_user_ids(self) -> list[str]:
+        return await self._collection.distinct("user_id")

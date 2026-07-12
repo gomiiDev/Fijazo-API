@@ -9,13 +9,19 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from fijazo_api.application.services.auth_service import AuthService
 from fijazo_api.application.services.bet_service import BetService
+from fijazo_api.application.services.ranking_service import RankingService
+from fijazo_api.application.services.statistics_service import StatisticsService
 from fijazo_api.core.exceptions import InvalidCredentialsError
 from fijazo_api.core.security import decode_access_token
 from fijazo_api.domain.entities.user import Role, User
 from fijazo_api.domain.repositories.bet_repository import BetRepository
+from fijazo_api.domain.repositories.statistics_repository import StatisticsRepository
 from fijazo_api.domain.repositories.user_repository import UserRepository
 from fijazo_api.infrastructure.repositories.mongo_bet_repository import (
     MongoBetRepository,
+)
+from fijazo_api.infrastructure.repositories.mongo_statistics_repository import (
+    MongoStatisticsRepository,
 )
 from fijazo_api.infrastructure.repositories.mongo_user_repository import (
     MongoUserRepository,
@@ -42,16 +48,37 @@ def get_bet_repository(
     return MongoBetRepository(db)
 
 
+def get_statistics_repository(
+    db: Annotated[AsyncDatabase, Depends(get_db)],
+) -> StatisticsRepository:
+    return MongoStatisticsRepository(db)
+
+
 def get_auth_service(
     users: Annotated[UserRepository, Depends(get_user_repository)],
 ) -> AuthService:
     return AuthService(users)
 
 
+def get_statistics_service(
+    bets: Annotated[BetRepository, Depends(get_bet_repository)],
+    stats: Annotated[StatisticsRepository, Depends(get_statistics_repository)],
+    users: Annotated[UserRepository, Depends(get_user_repository)],
+) -> StatisticsService:
+    return StatisticsService(bets, stats, users)
+
+
+def get_ranking_service(
+    stats: Annotated[StatisticsRepository, Depends(get_statistics_repository)],
+) -> RankingService:
+    return RankingService(stats)
+
+
 def get_bet_service(
     bets: Annotated[BetRepository, Depends(get_bet_repository)],
+    stats_service: Annotated[StatisticsService, Depends(get_statistics_service)],
 ) -> BetService:
-    return BetService(bets)
+    return BetService(bets, stats_sync=stats_service)
 
 
 async def get_current_user(

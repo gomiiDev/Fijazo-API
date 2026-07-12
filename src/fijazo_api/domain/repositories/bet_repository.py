@@ -40,3 +40,10 @@ class BetRepository(ABC):
     @abstractmethod
     async def delete(self, bet_id: str) -> bool:
         """Elimina la apuesta. Devuelve ``True`` si se eliminó algún documento."""
+
+    @abstractmethod
+    async def distinct_user_ids(self) -> list[str]:
+        """Devuelve los ``user_id`` distintos que tienen al menos una apuesta.
+
+        Se usa para el backfill de estadísticas al arrancar.
+        """
